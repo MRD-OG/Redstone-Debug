@@ -1,0 +1,158 @@
+package mc.mrd_og.redbug.objects.test;
+
+import mc.mrd_og.redbug.objects.monitor.MonitorManager;
+import mc.mrd_og.redbug.plugin.Redbug;
+import mc.mrd_og.redbug.objects.node.NodeManager;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.entity.Player;
+
+import java.util.*;
+
+public class TestManager {
+
+    HashMap<UUID, HashMap<String, Test>> playerTests = new HashMap<>();
+
+    private final Redbug plugin;
+    private NodeManager nodeManager;
+    private MonitorManager monitorManager;
+
+    private static TestManager testManager;
+
+    public static TestManager getInstance(Redbug plugin) {
+        if (testManager == null) {
+            testManager = new TestManager(plugin);
+        }
+
+        return testManager;
+    }
+
+    private TestManager(Redbug plugin) {
+        this.plugin = plugin;
+    }
+
+    public void setNodeManager(NodeManager nodeManager) {
+        this.nodeManager = nodeManager;
+    }
+
+    public void setMonitorManager(MonitorManager monitorManager) {
+        this.monitorManager = monitorManager;
+    }
+
+    public void start() {}
+
+    public void stop() {}
+
+    public Set<String> getPlayerTests(Player player) {
+
+        UUID uuid = player.getUniqueId();
+
+        if (playerHasNoTestEntry(player)) {
+            return null;
+        }
+
+        return playerTests.get(uuid).keySet();
+    }
+
+    public boolean playerHasNoTestEntry(Player player) {
+        return !playerTests.containsKey(player.getUniqueId());
+    }
+
+    public boolean playerHasTest(Player player, String testName) {
+
+        Set<String> testNames = getPlayerTests(player);
+
+        if (testNames == null) {
+            return false;
+        }
+
+        return testNames.contains(testName);
+    }
+
+    public Test getPlayerTest(Player player, String testName) {
+        if (!playerHasTest(player, testName))
+            return null;
+
+        return playerTests.get(player.getUniqueId()).get(testName);
+
+    }
+
+    public boolean addTest(Player player, String testName, HashMap<String, List<String>> csvData) {
+
+        if (playerHasTest(player, testName))
+            return false;
+
+        if (playerHasNoTestEntry(player)) {
+            playerTests.put(player.getUniqueId(), new HashMap<>());
+        }
+
+        HashMap<String, Test> tests = playerTests.get(player.getUniqueId());
+
+        if (tests == null) {
+            tests = new HashMap<>();
+        }
+
+        tests.put(testName, new Test(plugin, testName, csvData));
+        playerTests.put(player.getUniqueId(), tests);
+        return true;
+    }
+
+    public boolean removeTest(Player player, String testName) {
+
+        if (playerHasNoTestEntry(player)) {
+            playerTests.put(player.getUniqueId(), new HashMap<>());
+        }
+
+        if (!playerHasTest(player, testName))
+            return false;
+
+        playerTests.get(player.getUniqueId()).remove(testName);
+        return true;
+    }
+
+    public boolean deleteAllTests(Player player) {
+        if (playerHasNoTestEntry(player)) {
+            return false;
+        }
+
+        for (String testName : getPlayerTests(player)) {
+            removeTest(player, testName);
+        }
+        return true;
+    }
+
+    public boolean startTest(Player player, String testName, String monitorName, String clkPinName, int clkPeriod) {
+        if (!playerHasTest(player, testName)) {
+            player.sendMessage(Component.text("[RB]: Test " + testName + " does not exist", NamedTextColor.RED));
+            return false;
+        }
+        Test test = getPlayerTest(player, testName);
+
+        if (test.isTestRunning()) {
+            player.sendMessage(Component.text("[RB]: Test " + testName + " is already running", NamedTextColor.RED));
+            return false;
+        }
+
+        test.start(player, monitorName, clkPinName, clkPeriod);
+        return true;
+    }
+
+    public boolean stopTest(Player player, String testName) {
+        if (!playerHasTest(player, testName)) {
+            player.sendMessage(Component.text("[RB]: Test " + testName + " does not exist", NamedTextColor.RED));
+            return false;
+        }
+
+        getPlayerTest(player, testName).stop(player);
+        return true;
+    }
+
+    public boolean printTestInfo(Player player, String testName) {
+        if (!playerHasTest(player, testName)) {
+            return false;
+        }
+
+        playerTests.get(player.getUniqueId()).get(testName).printInfo(player);
+        return true;
+    }
+}
